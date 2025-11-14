@@ -1,0 +1,25 @@
+---
+- hosts: all
+  become: true
+  vars:
+    apache_packages:
+      Debian: apache2
+      CentOS: httpd
+
+    apache_service_name:
+      Debian: apache2
+      CentOS: httpd
+
+  tasks:
+
+    - name: Install Apache
+      package:
+        name: "{{ apache_packages[ansible_facts.os_family] }}"
+        state: present
+
+    - name: Start/Restart Apache
+      service:
+        name: "{{ apache_service_name[ansible_facts.os_family] }}"
+        state: started
+        enabled: yes
+    
