@@ -4,22 +4,82 @@
   vars:
     apache_packages:
       Debian: apache2
-      CentOS: httpd
+      Ubuntu: apache2
+      RedHat: httpd
 
     apache_service_name:
       Debian: apache2
-      CentOS: httpd
+      Ubuntu: apache2
+      RedHat: httpd
 
   tasks:
-
+    ####################################################################
+    # 1. ENTERPRISE SERVICE = APACHE
+    ####################################################################
     - name: Install Apache
       package:
         name: "{{ apache_packages[ansible_facts.os_family] }}"
         state: present
 
-    - name: Start/Restart Apache
+    - name: Start and enable Apache
       service:
         name: "{{ apache_service_name[ansible_facts.os_family] }}"
         state: started
         enabled: yes
-    
+
+    ####################################################################
+    # 2. MONITORING TOOL = NODE EXPORTER
+    ####################################################################
+    - name: Download node_exporter
+      get_url:
+        url: "https://github.com/prometheus/node_exporter/releases/download/v1.8.1/node_exporter-1.8.1.linux-amd64.tar.gz"
+        dest: /tmp/node_exporter.tar.gz
+        mode: '0644'
+      become: yes
+
+    - name: Extract node_exporter
+      unarchive:
+        src: /tmp/node_exporter.tar.gz
+        dest: /tmp/
+        remote_src: yes   # <-- FIX
+      become: yes
+
+    - name: Move node_exporter binary
+      copy:
+        src: "/tmp/node_exporter-1.8.1.linux-amd64/node_exporter"
+        dest: /usr/local/bin/node_exporter
+        mode: '0755'
+        remote_src: yes   # <-- FIX
+      become: yes
+
+    - name: Create systemd service for node_exporter
+      copy:
+        dest: /etc/systemd/system/node_exporter.service
+        content: |
+          [Unit]
+          Description=Node Exporter
+          After=network.target
+
+          [Service]
+          User=nobody
+          ExecStart=/usr/local/bin/node_exporter
+
+          [Install]
+          WantedBy=default.target
+      become: yes
+
+    - name: Start node_exporter service
+      systemd:
+        name: node_exporter
+        state: started
+        enabled: yes
+      become: yes
+
+    ####################################################################
+    # 3. UPDATE MOTD
+    ####################################################################
+    - name: Update MOTD
+      copy:
+        dest: /etc/motd
+        content: "Ansible Managed by {{ ansible_facts['user_id'] }}"
+      become: yes
